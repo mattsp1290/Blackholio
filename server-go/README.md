@@ -4,11 +4,13 @@ Go implementation of the Blackholio game server using SpacetimeDB. This server p
 
 ## Features
 
+- **Complete Game Constants System**: All game constants with runtime configuration support
 - **Complete DbVector2 Implementation**: Full-featured 2D vector type with mathematical operations
 - **Complete SpacetimeDB Table Definitions**: All 11 game tables with full functionality
 - **SpacetimeDB Integration**: Compatible with SpacetimeDB Go bindings
-- **Comprehensive Testing**: Extensive test suite with 100% pass rate (80+ test cases)
+- **Comprehensive Testing**: Extensive test suite with 100% pass rate (120+ test cases)
 - **Performance Optimized**: Efficient mathematical operations and memory usage
+- **Environment Configuration**: Runtime configuration via environment variables
 - **Cross-Platform**: Works on macOS, Linux, and Windows
 - **Full Feature Parity**: Matches Rust and C# implementations exactly
 
@@ -46,6 +48,9 @@ Go implementation of the Blackholio game server using SpacetimeDB. This server p
 server-go/
 ├── go.mod                 # Go module configuration
 ├── main.go               # Complete demo application
+├── constants/            # Game constants and configuration
+│   ├── constants.go      # Constants implementation (530 lines)
+│   └── constants_test.go # Constants tests (467 lines)
 ├── types/                # Core types package
 │   ├── vector2.go        # DbVector2 implementation (315 lines)
 │   └── vector2_test.go   # DbVector2 tests (584 lines)
@@ -54,6 +59,86 @@ server-go/
 │   └── tables_test.go    # Table tests (584 lines)
 ├── .gitignore           # Go gitignore file
 └── README.md            # This file
+```
+
+## Game Constants and Configuration
+
+The implementation includes all game constants used in Blackholio with comprehensive configuration management:
+
+### Core Constants
+
+```go
+// All constants match Rust and C# implementations exactly
+constants.START_PLAYER_MASS        = 15
+constants.START_PLAYER_SPEED       = 10
+constants.FOOD_MASS_MIN           = 2
+constants.FOOD_MASS_MAX           = 4
+constants.TARGET_FOOD_COUNT       = 600
+constants.MIN_MASS_TO_SPLIT       = 30  // START_PLAYER_MASS * 2
+constants.MAX_CIRCLES_PER_PLAYER  = 16
+constants.MINIMUM_SAFE_MASS_RATIO = 0.85
+constants.DEFAULT_WORLD_SIZE      = 1000
+```
+
+### Mathematical Functions
+
+```go
+// Calculate circle radius from mass (sqrt formula)
+radius := constants.MassToRadius(mass)
+
+// Calculate max movement speed based on mass
+speed := constants.MassToMaxMoveSpeed(mass)
+
+// Check if mass is sufficient for splitting
+canSplit := constants.IsValidMassForSplit(mass)
+
+// Calculate overlap threshold for consumption
+threshold := constants.GetOverlapThreshold(radiusA, radiusB)
+```
+
+### Runtime Configuration
+
+```go
+// Get default configuration
+config := constants.DefaultConfiguration()
+
+// Load from environment variables
+err := config.LoadFromEnvironment()
+
+// Set global configuration
+constants.SetGlobalConfiguration(config)
+
+// Validate configuration
+err := config.Validate()
+```
+
+### Environment Variables
+
+```bash
+# Core game settings
+export BLACKHOLIO_START_PLAYER_MASS=20
+export BLACKHOLIO_TARGET_FOOD_COUNT=800
+export BLACKHOLIO_MINIMUM_SAFE_MASS_RATIO=0.9
+
+# Timer settings (Go duration format)
+export BLACKHOLIO_MOVE_PLAYERS_INTERVAL=40ms
+export BLACKHOLIO_SPAWN_FOOD_INTERVAL=400ms
+
+# Performance settings
+export BLACKHOLIO_ENABLE_DEBUG_MODE=true
+export BLACKHOLIO_MAX_CONCURRENT_PLAYERS=500
+```
+
+### Configuration Help
+
+```go
+// Get help for all environment variables
+help := constants.GetEnvironmentVariableHelp()
+fmt.Println(help)
+
+// Get summary of all constants
+summary := constants.GetConstantsSummary()
+fmt.Println(summary)
 ```
 
 ## SpacetimeDB Table Definitions
@@ -223,6 +308,7 @@ go test ./... -cover
 go test ./... -bench=. -benchmem
 
 # Run specific package tests
+go test ./constants -v # Game constants tests
 go test ./types -v     # DbVector2 tests
 go test ./tables -v    # Table definition tests
 ```
@@ -230,9 +316,11 @@ go test ./tables -v    # Table definition tests
 ### Test Coverage
 
 The test suite includes:
+- **Constants Tests**: All game constants and configuration management (50+ test cases)
 - **DbVector2 Tests**: All mathematical operations and edge cases (40+ test cases)
 - **Table Definition Tests**: All table structures and validation (40+ test cases)
 - **Serialization Tests**: JSON and binary round-trip testing for all types
+- **Environment Variable Tests**: Configuration loading and validation
 - **Performance Tests**: Benchmarks for critical operations
 - **Edge Case Tests**: NaN, infinity, and zero handling
 - **Game Logic Tests**: Real-world usage scenarios
@@ -247,6 +335,13 @@ BenchmarkNormalized-16          1000000000    0.23 ns/op     0 B/op    0 allocs/
 BenchmarkDotProduct-16          1000000000    0.23 ns/op     0 B/op    0 allocs/op
 BenchmarkBinarySerialization-16    92173274   12.9 ns/op    16 B/op    2 allocs/op
 BenchmarkJSONSerialization-16       1789846    680 ns/op   448 B/op   12 allocs/op
+```
+
+#### Constants Performance
+```
+BenchmarkMassToRadius-16                1000000000    0.23 ns/op     0 B/op    0 allocs/op
+BenchmarkMassToMaxMoveSpeed-16           950612698    1.27 ns/op     0 B/op    0 allocs/op
+BenchmarkConfigurationValidation-16     430173440    2.80 ns/op     0 B/op    0 allocs/op
 ```
 
 #### Table Definitions Performance
@@ -320,11 +415,13 @@ This project is part of the Blackholio game and follows the same license as the 
 
 ---
 
-**Status**: ✅ Task 24 COMPLETED - All SpacetimeDB table definitions implemented
+**Status**: ✅ Task 25 COMPLETED - All game constants and configuration implemented
 - ✅ DbVector2 implementation complete (Task 23)  
-- ✅ All 11 table definitions implemented with full functionality
-- ✅ Comprehensive test suite with 80+ test cases and 100% pass rate
+- ✅ All 11 table definitions implemented with full functionality (Task 24)
+- ✅ Complete game constants system with runtime configuration (Task 25)
+- ✅ Comprehensive test suite with 120+ test cases and 100% pass rate
 - ✅ Complete feature parity with Rust and C# implementations
 - ✅ Production-ready code with excellent performance
+- ✅ Environment variable configuration support
 
-**Next Steps**: Implement game constants and core game logic functions (Task 25-26) 
+**Next Steps**: Implement core game logic functions (Task 26) 

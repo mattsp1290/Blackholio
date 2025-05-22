@@ -4,12 +4,26 @@ import (
 	"encoding/json"
 	"fmt"
 	"math"
+	"time"
 
+	"github.com/clockworklabs/Blackholio/server-go/tables"
 	"github.com/clockworklabs/Blackholio/server-go/types"
 )
 
 func main() {
-	fmt.Println("=== Blackholio Server Go - DbVector2 Demo ===")
+	fmt.Println("=== Blackholio Server Go - Complete Demo ===")
+
+	// DbVector2 Demo
+	demoDbVector2()
+
+	// Table Definitions Demo
+	demoTableDefinitions()
+
+	fmt.Println("\n=== Demo completed successfully! ===")
+}
+
+func demoDbVector2() {
+	fmt.Println("\n🔢 PART 1: DbVector2 Demo")
 
 	// Create some vectors
 	fmt.Println("\n1. Creating vectors:")
@@ -131,6 +145,198 @@ func main() {
 	fmt.Printf("Circle 2: center %v, radius %.1f\n", circle2Center, circle2Radius)
 	fmt.Printf("Distance: %.3f\n", distance)
 	fmt.Printf("Overlapping: %v\n", overlapping)
+}
 
-	fmt.Println("\n=== Demo completed successfully! ===")
+func demoTableDefinitions() {
+	fmt.Println("\n🗃️  PART 2: SpacetimeDB Table Definitions Demo")
+
+	// Demo core game tables
+	fmt.Println("\n1. Core Game Tables:")
+	demoGameTables()
+
+	// Demo timer tables
+	fmt.Println("\n2. Timer Tables:")
+	demoTimerTables()
+
+	// Demo SpacetimeDB core types
+	fmt.Println("\n3. SpacetimeDB Core Types:")
+	demoSpacetimeDBTypes()
+
+	// Demo serialization
+	fmt.Println("\n4. Serialization:")
+	demoSerialization()
+
+	// Demo table metadata
+	fmt.Println("\n5. Table Metadata:")
+	demoTableMetadata()
+}
+
+func demoGameTables() {
+	// Config table
+	config := tables.NewConfig(1, 2000)
+	fmt.Printf("Config: ID=%d, WorldSize=%d\n", config.ID, config.WorldSize)
+	if err := config.Validate(); err != nil {
+		fmt.Printf("Config validation error: %v\n", err)
+	} else {
+		fmt.Println("✅ Config is valid")
+	}
+
+	// Entity table
+	entityPos := types.NewDbVector2(100.0, 150.0)
+	entity := tables.NewEntity(42, entityPos, 250)
+	fmt.Printf("Entity: ID=%d, Position=%v, Mass=%d\n", entity.EntityID, entity.Position, entity.Mass)
+	if err := entity.Validate(); err != nil {
+		fmt.Printf("Entity validation error: %v\n", err)
+	} else {
+		fmt.Println("✅ Entity is valid")
+	}
+
+	// Circle table
+	direction := types.NewDbVector2(0.707, 0.707) // 45 degrees
+	lastSplit := tables.NewTimestampFromTime(time.Now())
+	circle := tables.NewCircle(42, 1, direction, 10.5, lastSplit)
+	fmt.Printf("Circle: EntityID=%d, PlayerID=%d, Direction=%v, Speed=%.1f\n",
+		circle.EntityID, circle.PlayerID, circle.Direction, circle.Speed)
+	if err := circle.Validate(); err != nil {
+		fmt.Printf("Circle validation error: %v\n", err)
+	} else {
+		fmt.Println("✅ Circle is valid")
+	}
+
+	// Player table
+	identity := tables.NewIdentity([16]byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16})
+	player := tables.NewPlayer(identity, 1, "SpacePilot")
+	fmt.Printf("Player: PlayerID=%d, Name=%s, Identity=%s\n",
+		player.PlayerID, player.Name, player.Identity.String())
+	if err := player.Validate(); err != nil {
+		fmt.Printf("Player validation error: %v\n", err)
+	} else {
+		fmt.Println("✅ Player is valid")
+	}
+
+	// Food table
+	food := tables.NewFood(123)
+	fmt.Printf("Food: EntityID=%d\n", food.EntityID)
+}
+
+func demoTimerTables() {
+	// Interval-based timer (repeating)
+	moveInterval := tables.NewTimeDurationFromDuration(100 * time.Millisecond)
+	moveSchedule := tables.NewScheduleAtInterval(moveInterval)
+	moveTimer := tables.MoveAllPlayersTimer{
+		ScheduledID: 1,
+		ScheduledAt: moveSchedule,
+	}
+	fmt.Printf("Move Timer: %s\n", moveTimer.ScheduledAt.String())
+
+	// Time-based timer (one-shot)
+	futureTime := tables.NewTimestampFromTime(time.Now().Add(5 * time.Second))
+	timeSchedule := tables.NewScheduleAtTime(futureTime)
+	consumeTimer := tables.ConsumeEntityTimer{
+		ScheduledID:      2,
+		ScheduledAt:      timeSchedule,
+		ConsumedEntityID: 456,
+		ConsumerEntityID: 789,
+	}
+	fmt.Printf("Consume Timer: %s (consumer=%d -> consumed=%d)\n",
+		consumeTimer.ScheduledAt.String(), consumeTimer.ConsumerEntityID, consumeTimer.ConsumedEntityID)
+
+	// Food spawn timer
+	spawnInterval := tables.NewTimeDurationFromDuration(1 * time.Second)
+	spawnSchedule := tables.NewScheduleAtInterval(spawnInterval)
+	spawnTimer := tables.SpawnFoodTimer{
+		ScheduledID: 3,
+		ScheduledAt: spawnSchedule,
+	}
+	fmt.Printf("Food Spawn Timer: %s\n", spawnTimer.ScheduledAt.String())
+}
+
+func demoSpacetimeDBTypes() {
+	// Identity
+	identity := tables.NewIdentity([16]byte{0xde, 0xad, 0xbe, 0xef, 0xca, 0xfe, 0xba, 0xbe,
+		0xfe, 0xed, 0xfa, 0xce, 0x12, 0x34, 0x56, 0x78})
+	fmt.Printf("Identity: %s (IsZero: %v)\n", identity.String(), identity.IsZero())
+
+	// Timestamp
+	now := time.Now()
+	timestamp := tables.NewTimestampFromTime(now)
+	fmt.Printf("Timestamp: %s (microseconds: %d)\n", timestamp.String(), timestamp.Microseconds)
+
+	// Duration
+	duration := tables.NewTimeDurationFromDuration(2*time.Hour + 30*time.Minute)
+	fmt.Printf("Duration: %s (microseconds: %d)\n", duration.String(), duration.Microseconds)
+
+	// Timestamp arithmetic
+	futureTime := timestamp.Add(duration)
+	elapsed := futureTime.Sub(timestamp)
+	fmt.Printf("Future time: %s\n", futureTime.String())
+	fmt.Printf("Elapsed duration: %s\n", elapsed.String())
+
+	// ScheduleAt examples
+	timeSchedule := tables.NewScheduleAtTime(futureTime)
+	intervalSchedule := tables.NewScheduleAtInterval(duration)
+
+	fmt.Printf("Time-based schedule: %s (IsTime: %v)\n", timeSchedule.String(), timeSchedule.IsTime())
+	fmt.Printf("Interval-based schedule: %s (IsInterval: %v)\n", intervalSchedule.String(), intervalSchedule.IsInterval())
+}
+
+func demoSerialization() {
+	// Create sample data
+	identity := tables.NewIdentity([16]byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16})
+	player := tables.NewPlayer(identity, 42, "JsonTestPlayer")
+
+	// JSON serialization
+	jsonData, err := json.MarshalIndent(player, "", "  ")
+	if err != nil {
+		fmt.Printf("JSON marshal error: %v\n", err)
+		return
+	}
+	fmt.Printf("Player JSON:\n%s\n", string(jsonData))
+
+	// JSON deserialization
+	var decodedPlayer tables.Player
+	err = json.Unmarshal(jsonData, &decodedPlayer)
+	if err != nil {
+		fmt.Printf("JSON unmarshal error: %v\n", err)
+		return
+	}
+	fmt.Printf("Decoded player: PlayerID=%d, Name=%s\n", decodedPlayer.PlayerID, decodedPlayer.Name)
+
+	// Complex structure serialization
+	entity := tables.NewEntity(999, types.NewDbVector2(3.14159, 2.71828), 1000)
+	entityJson, _ := json.MarshalIndent(entity, "", "  ")
+	fmt.Printf("Entity JSON:\n%s\n", string(entityJson))
+}
+
+func demoTableMetadata() {
+	fmt.Printf("Total tables defined: %d\n", len(tables.TableDefinitions))
+
+	for tableName, tableInfo := range tables.TableDefinitions {
+		fmt.Printf("\nTable: %s\n", tableName)
+		fmt.Printf("  Public: %v\n", tableInfo.PublicRead)
+		fmt.Printf("  Columns: %d\n", len(tableInfo.Columns))
+
+		// Show primary key and indexes
+		for _, col := range tableInfo.Columns {
+			if col.PrimaryKey {
+				fmt.Printf("  Primary Key: %s (%s)", col.Name, col.Type)
+				if col.AutoInc {
+					fmt.Printf(" [AUTO_INC]")
+				}
+				fmt.Println()
+			}
+		}
+
+		for _, idx := range tableInfo.Indexes {
+			fmt.Printf("  Index: %s (%s) on %v\n", idx.Name, idx.Type, idx.Columns)
+		}
+	}
+
+	// Show table relationships
+	fmt.Println("\n6. Table Relationships:")
+	fmt.Println("  Entity (1) -> Circle (1): entity_id")
+	fmt.Println("  Entity (1) -> Food (1): entity_id")
+	fmt.Println("  Player (1) -> Circle (*): player_id")
+	fmt.Println("  Config (1) stores global game settings")
+	fmt.Println("  Timer tables handle scheduled game events")
 }

@@ -17,6 +17,8 @@ import (
 // Blackholio Reducer Implementations
 // These reducers match the functionality in server-rust/src/lib.rs and server-csharp/Lib.cs
 
+// Use universal reducer patterns from the bindings-go package
+
 // InitReducer handles module initialization
 // Matches: Rust init() and C# Init()
 func InitReducer(ctx *ReducerContext, args []byte) ReducerResult {

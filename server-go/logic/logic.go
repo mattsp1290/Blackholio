@@ -137,6 +137,16 @@ type EntityDeletion struct {
 	EntityID uint32
 }
 
+// DestroyEntity destroys an entity by performing all the necessary database deletions
+// This is a database operation that should be implemented by the database context
+type DestroyEntityFunc func(entityID uint32) error
+
+// DestroyEntity destroys an entity using the provided destroy function
+// This matches the pattern used in Rust and C# implementations
+func DestroyEntity(destroyFunc DestroyEntityFunc, entityID uint32) error {
+	return destroyFunc(entityID)
+}
+
 // ScheduleConsumeEntity creates a timer for entity consumption
 func ScheduleConsumeEntity(consumerID, consumedID uint32, timestamp tables.Timestamp) *tables.ConsumeEntityTimer {
 	scheduleAt := tables.NewScheduleAtTime(timestamp)

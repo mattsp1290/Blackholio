@@ -505,16 +505,31 @@ func MoveAllPlayersReducer(ctx *ReducerContext, args []byte) ReducerResult {
 					if otherCircle.PlayerID != circle.PlayerID {
 						// Player vs player collision
 						if logic.CanConsumeEntity(circleEntity.Mass, otherEntity.Mass) {
-							timer := logic.ScheduleConsumeEntity(circleEntity.EntityID, otherEntity.EntityID, ctx.Timestamp)
-							// TODO: Insert timer into database
-							_ = timer
+							// Schedule consumption immediately
+							consumeArgs, _ := json.Marshal(map[string]interface{}{
+								"consumer_entity_id": circleEntity.EntityID,
+								"consumed_entity_id": otherEntity.EntityID,
+							})
+
+							// Schedule for immediate execution (current timestamp)
+							schedule := tables.NewScheduleAtTime(ctx.Timestamp)
+							if err := ctx.Database.ScheduleReducer("ConsumeEntity", consumeArgs, schedule); err != nil {
+								LogWarn(fmt.Sprintf("Failed to schedule ConsumeEntity: %v", err))
+							}
 						}
 					}
 				} else {
-					// Player vs food collision
-					timer := logic.ScheduleConsumeEntity(circleEntity.EntityID, otherEntity.EntityID, ctx.Timestamp)
-					// TODO: Insert timer into database
-					_ = timer
+					// Player vs food collision - schedule for immediate consumption
+					consumeArgs, _ := json.Marshal(map[string]interface{}{
+						"consumer_entity_id": circleEntity.EntityID,
+						"consumed_entity_id": otherEntity.EntityID,
+					})
+
+					// Schedule for immediate execution (current timestamp)
+					schedule := tables.NewScheduleAtTime(ctx.Timestamp)
+					if err := ctx.Database.ScheduleReducer("ConsumeEntity", consumeArgs, schedule); err != nil {
+						LogWarn(fmt.Sprintf("Failed to schedule ConsumeEntity: %v", err))
+					}
 				}
 			}
 		}
@@ -666,9 +681,17 @@ func CircleRecombineReducer(ctx *ReducerContext, args []byte) ReducerResult {
 	// Schedule consumption of all circles into the first one
 	baseEntityID := recombiningEntities[0].EntityID
 	for i := 1; i < len(recombiningEntities); i++ {
-		timer := logic.ScheduleConsumeEntity(baseEntityID, recombiningEntities[i].EntityID, ctx.Timestamp)
-		// TODO: Insert timer into database
-		_ = timer
+		// Schedule consumption for immediate execution
+		consumeArgs, _ := json.Marshal(map[string]interface{}{
+			"consumer_entity_id": baseEntityID,
+			"consumed_entity_id": recombiningEntities[i].EntityID,
+		})
+
+		// Schedule for immediate execution (current timestamp)
+		schedule := tables.NewScheduleAtTime(ctx.Timestamp)
+		if err := ctx.Database.ScheduleReducer("ConsumeEntity", consumeArgs, schedule); err != nil {
+			LogWarn(fmt.Sprintf("Failed to schedule ConsumeEntity for recombine: %v", err))
+		}
 	}
 
 	return SuccessResult{}

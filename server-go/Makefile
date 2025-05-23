@@ -15,7 +15,7 @@ build:
 # Build WASM module for SpacetimeDB
 wasm:
 	@echo "Building WASM module..."
-	GOOS=js GOARCH=wasm go build -o blackholio.wasm .
+	GOOS=wasip1 GOARCH=wasm go build -o blackholio.wasm .
 	@echo "Built: blackholio.wasm ($$(stat -f%z blackholio.wasm 2>/dev/null || stat -c%s blackholio.wasm) bytes)"
 
 # Run tests

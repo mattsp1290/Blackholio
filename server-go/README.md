@@ -54,7 +54,7 @@ Go implementation of the Blackholio game server using SpacetimeDB. This server p
 make wasm
 
 # Or use Go directly
-GOOS=js GOARCH=wasm go build -o blackholio.wasm .
+GOOS=wasip1 GOARCH=wasm go build -o blackholio.wasm .
 ```
 
 ### Deployment to SpacetimeDB
@@ -218,8 +218,8 @@ export BLACKHOLIO_WORLD_SIZE=1200
 
 ### Build Constraints
 - Uses Go build tags to separate WASM and non-WASM code
-- `//go:build js && wasm` for WASM-specific code
-- `//go:build !(js && wasm)` for non-WASM code
+- `//go:build wasip1 && wasm` for WASM-specific code
+- `//go:build !(wasip1 && wasm)` for non-WASM code
 
 ## Next Steps (Tasks 33-35)
 
@@ -266,4 +266,32 @@ This project is part of the Blackholio game and follows the same license as the 
 - ✅ Production-ready code with excellent performance
 - ✅ Environment variable configuration support
 
-**Next Steps**: Implement SpacetimeDB reducer system integration (Task 27) 
+**Next Steps**: Implement SpacetimeDB reducer system integration (Task 27)
+
+## ⚙️ Building for SpacetimeDB
+
+### WASM Compilation Target
+
+This project uses **GOOS=wasip1** (not GOOS=js) for WASM compilation because:
+
+- SpacetimeDB is a server-side database system that runs WASM modules directly
+- `wasip1` creates standalone WASM modules for WASI-compatible runtimes
+- `js` target is designed for browser environments with JavaScript integration
+- SpacetimeDB C# implementation also uses `wasi-wasm` target
+
+```bash
+# Correct WASM compilation:
+GOOS=wasip1 GOARCH=wasm go build -o blackholio.wasm .
+
+# Or use the Makefile:
+make wasm
+```
+
+### Build Constraints
+
+The project uses Go build constraints to separate WASM and non-WASM code:
+
+- `//go:build wasip1 && wasm` - WASM-specific code (wasm.go, reducers/wasm.go)
+- `//go:build !(wasip1 && wasm)` - Non-WASM code (main.go, reducers/database_nonwasm.go)
+
+This ensures proper compilation for both development/testing and SpacetimeDB deployment. 

@@ -30,7 +30,7 @@ rm -f *.wasm
 rm -f main
 
 # Set WASM build environment
-export GOOS=js
+export GOOS=wasip1
 export GOARCH=wasm
 
 # Build WASM module

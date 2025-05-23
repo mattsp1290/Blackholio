@@ -1,4 +1,4 @@
-//go:build !(js && wasm)
+//go:build !(wasip1 && wasm)
 
 package main
 

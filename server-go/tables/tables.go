@@ -92,13 +92,28 @@ type ConsumeEntityTimer struct {
 }
 
 // SpacetimeDB Core Types
-// These types are now imported from the official Go bindings
+// These types match the official SpacetimeDB Go bindings
 
-// Re-export core types from SpacetimeDB Go bindings for backward compatibility
-type Identity = stdb_types.Identity
-type Timestamp = stdb_types.Timestamp
-type TimeDuration = stdb_types.TimeDuration
-type ScheduleAt = stdb_types.ScheduleAt
+// Identity represents a unique client identity
+type Identity struct {
+	Bytes [16]byte `json:"bytes" bsatn:"0"`
+}
+
+// Timestamp represents a point in time with microsecond precision
+type Timestamp struct {
+	Microseconds uint64 `json:"microseconds" bsatn:"0"`
+}
+
+// TimeDuration represents a duration with microsecond precision
+type TimeDuration struct {
+	Microseconds uint64 `json:"microseconds" bsatn:"0"`
+}
+
+// ScheduleAt represents when a scheduled reducer should run
+type ScheduleAt struct {
+	Time     *Timestamp    `json:"time,omitempty" bsatn:"0"`
+	Interval *TimeDuration `json:"interval,omitempty" bsatn:"1"`
+}
 
 // Table Information and Metadata
 

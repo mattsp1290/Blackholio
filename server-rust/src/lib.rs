@@ -349,11 +349,16 @@ pub fn enter_game(ctx: &ReducerContext, name: String) -> Result<(), String> {
     }
     
     // Sample food (first 5 items)
-    let food_count = ctx.db.food().iter().take(5).count();
-    log::info!("🔍 [SERVER] Food items (first 5 of {}): ", ctx.db.food().iter().count());
+    let food_count = ctx.db.food().iter().count();
+    log::info!("🔍 [SERVER] Food items (showing first 5 of {}): ", food_count);
     for (i, food) in ctx.db.food().iter().take(5).enumerate() {
-        log::info!("🔍 [SERVER] Food {}: entity_id={}, pos=({:.2},{:.2}), mass={}", 
-                  i, food.entity_id, food.position.x, food.position.y, food.mass);
+        // Food table only has entity_id, need to look up Entity for position/mass
+        if let Some(entity) = ctx.db.entity().entity_id().find(&food.entity_id) {
+            log::info!("🔍 [SERVER] Food {}: entity_id={}, pos=({:.2},{:.2}), mass={}", 
+                      i, food.entity_id, entity.position.x, entity.position.y, entity.mass);
+        } else {
+            log::info!("🔍 [SERVER] Food {}: entity_id={}, entity not found!", i, food.entity_id);
+        }
     }
     
     log::info!("🎉 [SERVER] enter_game completed successfully for player_id: {}", player_id);

@@ -142,24 +142,74 @@ pub fn init(ctx: &ReducerContext) -> Result<(), String> {
 
 #[spacetimedb::reducer(client_connected)]
 pub fn connect(ctx: &ReducerContext) -> Result<(), String> {
+    log::info!("🔌 [SERVER] CLIENT_CONNECTED: identity {:?} connected to server", ctx.sender);
+    
+    // 📊 [SERVER] Log current game state when client connects
+    let players_count = ctx.db.player().iter().count();
+    let logged_out_count = ctx.db.logged_out_player().iter().count();
+    let entities_count = ctx.db.entity().iter().count();
+    let circles_count = ctx.db.circle().iter().count();
+    let food_count = ctx.db.food().iter().count();
+    log::info!("📊 [SERVER] Current state on connect: {} active players, {} logged_out, {} entities, {} circles, {} food", 
+              players_count, logged_out_count, entities_count, circles_count, food_count);
+    
     if let Some(player) = ctx.db.logged_out_player().identity().find(&ctx.sender) {
-        ctx.db.player().insert(player.clone());
+        log::info!("🔄 [SERVER] Found logged-out player, restoring: id={}, name='{}'", player.player_id, player.name);
+        
+        let restored_player = ctx.db.player().insert(player.clone());
+        log::info!("✅ [SERVER] Restored player to active table: id={}, name='{}'", restored_player.player_id, restored_player.name);
+        
         ctx.db
             .logged_out_player()
             .identity()
             .delete(&player.identity);
+        log::info!("🗑️ [SERVER] Removed player from logged_out table");
     } else {
-        ctx.db.player().try_insert(Player {
+        log::info!("➕ [SERVER] New client connection, creating placeholder player record");
+        
+        let new_player = ctx.db.player().try_insert(Player {
             identity: ctx.sender,
             player_id: 0,
             name: String::new(),
         })?;
+        log::info!("✅ [SERVER] Created placeholder player: id={}, name='{}'", new_player.player_id, new_player.name);
     }
+    
+    // 📊 [SERVER] Log final state after client connection
+    let final_players = ctx.db.player().iter().count();
+    let final_logged_out = ctx.db.logged_out_player().iter().count();
+    log::info!("📈 [SERVER] After connection: {} active players (+{}), {} logged_out players", 
+              final_players, final_players as i32 - players_count as i32, final_logged_out);
+    
+    // 🎯 [SERVER] Critical for subscription debugging: List current data available to send
+    log::info!("🔍 [SERVER] === CLIENT_CONNECTED: Data available for subscription ===");
+    
+    // List all active players (what the client should receive in subscription)
+    for player in ctx.db.player().iter() {
+        log::info!("🔍 [SERVER] Available Player: id={}, name='{}', identity={:?}", 
+                  player.player_id, player.name, player.identity);
+    }
+    
+    // List all entities (what the client should receive in subscription)
+    for entity in ctx.db.entity().iter() {
+        log::info!("🔍 [SERVER] Available Entity: id={}, pos=({:.2},{:.2}), mass={}", 
+                  entity.entity_id, entity.position.x, entity.position.y, entity.mass);
+    }
+    
+    // Count circles and food for subscription
+    let total_circles = ctx.db.circle().iter().count();
+    let total_food = ctx.db.food().iter().count();
+    log::info!("🔍 [SERVER] Available data summary: {} circles, {} food items", total_circles, total_food);
+    
+    log::info!("✅ [SERVER] client_connected completed - SpacetimeDB should now send subscription data to client");
+    
     Ok(())
 }
 
 #[spacetimedb::reducer(client_disconnected)]
 pub fn disconnect(ctx: &ReducerContext) -> Result<(), String> {
+    log::info!("🔌❌ [SERVER] CLIENT_DISCONNECTED: identity {:?} disconnecting", ctx.sender);
+    
     let player = ctx
         .db
         .player()
@@ -167,27 +217,147 @@ pub fn disconnect(ctx: &ReducerContext) -> Result<(), String> {
         .find(&ctx.sender)
         .ok_or("Player not found")?;
     let player_id = player.player_id;
+    
+    log::info!("🔍 [SERVER] Disconnecting player: id={}, name='{}'", player_id, player.name);
+    
+    // Count entities/circles before cleanup
+    let circles_before = ctx.db.circle().player_id().filter(&player_id).count();
+    let entities_before = ctx.db.entity().iter().count();
+    
+    log::info!("📊 [SERVER] Before cleanup: player has {} circles, {} total entities", circles_before, entities_before);
+    
+    // Move player to logged_out table
     ctx.db.logged_out_player().insert(player);
+    log::info!("🔄 [SERVER] Moved player to logged_out table");
+    
     ctx.db.player().identity().delete(&ctx.sender);
+    log::info!("🗑️ [SERVER] Removed player from active table");
 
     // Remove any circles from the arena
+    let mut circles_removed = 0;
+    let mut entities_removed = 0;
     for circle in ctx.db.circle().player_id().filter(&player_id) {
+        log::info!("🗑️ [SERVER] Removing circle: entity_id={}, player_id={}", circle.entity_id, circle.player_id);
         ctx.db.entity().entity_id().delete(&circle.entity_id);
         ctx.db.circle().entity_id().delete(&circle.entity_id);
+        circles_removed += 1;
+        entities_removed += 1;
     }
+    
+    // 📊 [SERVER] Log final state after disconnection
+    let final_players = ctx.db.player().iter().count();
+    let final_entities = ctx.db.entity().iter().count();
+    let final_circles = ctx.db.circle().iter().count();
+    
+    log::info!("📈 [SERVER] Cleanup completed: removed {} circles, {} entities", circles_removed, entities_removed);
+    log::info!("📊 [SERVER] Final state: {} active players, {} entities, {} circles", 
+              final_players, final_entities, final_circles);
+    
+    log::info!("✅ [SERVER] client_disconnected completed for player_id: {}", player_id);
 
     Ok(())
 }
 
 #[spacetimedb::reducer]
 pub fn enter_game(ctx: &ReducerContext, name: String) -> Result<(), String> {
-    log::info!("Creating player with name {}", name);
-    let mut player: Player = ctx.db.player().identity().find(ctx.sender).ok_or("")?;
-    let player_id = player.player_id;
-    player.name = name;
-    ctx.db.player().identity().update(player);
-    spawn_player_initial_circle(ctx, player_id)?;
-
+    log::info!("🚀 [SERVER] enter_game called for name: '{}', identity: {:?}", name, ctx.sender);
+    
+    // 📊 [SERVER] Log current game state BEFORE processing
+    let current_players = ctx.db.player().iter().count();
+    let current_entities = ctx.db.entity().iter().count();
+    let current_circles = ctx.db.circle().iter().count();
+    let current_food = ctx.db.food().iter().count();
+    log::info!("📊 [SERVER] PRE-ENTER game state: {} players, {} entities, {} circles, {} food", 
+              current_players, current_entities, current_circles, current_food);
+    
+    // Check if player already exists
+    let player_id = match ctx.db.player().identity().find(&ctx.sender) {
+        Some(existing_player) => {
+            log::info!("🔍 [SERVER] Found existing player {} for identity: {:?}", existing_player.player_id, ctx.sender);
+            log::info!("🔍 [SERVER] Existing player details: id={}, name='{}', identity={:?}", 
+                      existing_player.player_id, existing_player.name, existing_player.identity);
+            
+            // CRITICAL FIX: Only update if name is different AND avoid the update operation
+            // that causes delete+insert cycles in SpacetimeDB
+            if existing_player.name != name {
+                log::info!("🔄 [SERVER] Player name needs update from '{}' to '{}', but avoiding update to prevent delete+insert cycle", existing_player.name, name);
+                // WORKAROUND: For now, just log the name change instead of updating
+                // This prevents the delete+insert cycle that was causing players to disappear
+                log::warn!("⚠️ [SERVER] Name update skipped to avoid SpacetimeDB delete+insert cycle issue");
+            } else {
+                log::info!("✅ [SERVER] Player name unchanged: '{}'", name);
+            }
+            
+            existing_player.player_id
+        },
+        None => {
+            // Create new player (handles v1.1.2 lifecycle issue)
+            log::info!("➕ [SERVER] Player not found for identity {:?}, creating new player", ctx.sender);
+            
+            let new_player = ctx.db.player().insert(Player {
+                identity: ctx.sender,
+                player_id: 0,  // Will be auto-incremented by SpacetimeDB
+                name: name.clone(),    // Set name directly on creation
+            });
+            
+            log::info!("✅ [SERVER] Created new player with ID: {}", new_player.player_id);
+            log::info!("✅ [SERVER] New player details: id={}, name='{}', identity={:?}", 
+                      new_player.player_id, new_player.name, new_player.identity);
+            new_player.player_id
+        }
+    };
+    
+    // Spawn initial circle for the player
+    log::info!("🎯 [SERVER] Spawning initial circle for player_id: {}", player_id);
+    let spawned_entity = spawn_player_initial_circle(ctx, player_id)?;
+    log::info!("✅ [SERVER] Spawned initial entity with ID: {}", spawned_entity.entity_id);
+    
+    // 📊 [SERVER] Log game state AFTER processing
+    let final_players = ctx.db.player().iter().count();
+    let final_entities = ctx.db.entity().iter().count();
+    let final_circles = ctx.db.circle().iter().count();
+    let final_food = ctx.db.food().iter().count();
+    log::info!("📊 [SERVER] POST-ENTER game state: {} players, {} entities, {} circles, {} food", 
+              final_players, final_entities, final_circles, final_food);
+    
+    // 📊 [SERVER] Log the changes
+    log::info!("📈 [SERVER] Changes: players +{}, entities +{}, circles +{}, food +{}", 
+              final_players as i32 - current_players as i32,
+              final_entities as i32 - current_entities as i32, 
+              final_circles as i32 - current_circles as i32,
+              final_food as i32 - current_food as i32);
+    
+    // 🎯 [SERVER] Critical subscription debugging: List all current data
+    log::info!("🔍 [SERVER] === SUBSCRIPTION DEBUG: Current table contents ===");
+    
+    // List all players
+    for player in ctx.db.player().iter() {
+        log::info!("🔍 [SERVER] Player: id={}, name='{}', identity={:?}", 
+                  player.player_id, player.name, player.identity);
+    }
+    
+    // List all entities
+    for entity in ctx.db.entity().iter() {
+        log::info!("🔍 [SERVER] Entity: id={}, pos=({:.2},{:.2}), mass={}", 
+                  entity.entity_id, entity.position.x, entity.position.y, entity.mass);
+    }
+    
+    // List all circles  
+    for circle in ctx.db.circle().iter() {
+        log::info!("🔍 [SERVER] Circle: entity_id={}, player_id={}, speed={:.2}", 
+                  circle.entity_id, circle.player_id, circle.speed);
+    }
+    
+    // Sample food (first 5 items)
+    let food_count = ctx.db.food().iter().take(5).count();
+    log::info!("🔍 [SERVER] Food items (first 5 of {}): ", ctx.db.food().iter().count());
+    for (i, food) in ctx.db.food().iter().take(5).enumerate() {
+        log::info!("🔍 [SERVER] Food {}: entity_id={}, pos=({:.2},{:.2}), mass={}", 
+                  i, food.entity_id, food.position.x, food.position.y, food.mass);
+    }
+    
+    log::info!("🎉 [SERVER] enter_game completed successfully for player_id: {}", player_id);
+    
     Ok(())
 }
 
@@ -219,19 +389,32 @@ fn spawn_circle_at(
     position: DbVector2,
     timestamp: Timestamp,
 ) -> Result<Entity, String> {
+    log::info!("🌟 [SERVER] spawn_circle_at called for player_id={}, mass={}, pos=({:.2},{:.2})", 
+              player_id, mass, position.x, position.y);
+    
     let entity = ctx.db.entity().try_insert(Entity {
         entity_id: 0,
         position,
         mass,
     })?;
+    
+    log::info!("✅ [SERVER] Created entity with ID: {}", entity.entity_id);
+    log::info!("🔍 [SERVER] Entity details: id={}, pos=({:.2},{:.2}), mass={}", 
+              entity.entity_id, entity.position.x, entity.position.y, entity.mass);
 
-    ctx.db.circle().try_insert(Circle {
+    let circle = ctx.db.circle().try_insert(Circle {
         entity_id: entity.entity_id,
         player_id,
         direction: DbVector2 { x: 0.0, y: 1.0 },
         speed: 0.0,
         last_split_time: timestamp,
     })?;
+    
+    log::info!("✅ [SERVER] Created circle for entity_id={}, player_id={}", entity.entity_id, player_id);
+    log::info!("🔍 [SERVER] Circle details: entity_id={}, player_id={}, speed={:.2}", 
+              circle.entity_id, circle.player_id, circle.speed);
+    
+    log::info!("🎯 [SERVER] spawn_circle_at completed successfully");
     Ok(entity)
 }
 
